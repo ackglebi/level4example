@@ -3,9 +3,13 @@ package com.example.reminder_final_ex3
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import android.view.Menu
 import android.view.MenuItem
+import androidx.activity.viewModels
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModel
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -18,24 +22,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-const val ADD_REMINDER_REQUEST_CODE = 100
 
 class MainActivity : AppCompatActivity() {
 
     private val reminders = arrayListOf<Reminder>()
     private val reminderAdapter = ReminderAdapter(reminders)
-    private lateinit var reminderRepository: ReminderRepository
+//    private lateinit var reminderRepository: ReminderRepository
+    private val viewModel: MainActivityViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
 
-        reminderRepository = ReminderRepository(this)
+//        reminderRepository = ReminderRepository(this)
         initViews()
-        fab.setOnClickListener {
-            startAddActivity()
-        }
+        observeViewModel()
     }
 
     private fun startAddActivity() {
@@ -75,37 +77,39 @@ class MainActivity : AppCompatActivity() {
 
         createItemTouchHelper().attachToRecyclerView(rvReminders)
 
-        // get the reminders from database
-        getRemindersFromDatabase()
-    }
-
-    private fun getRemindersFromDatabase() {
-        CoroutineScope(Dispatchers.Main).launch {
-            val reminders  = withContext(Dispatchers.IO) {
-                reminderRepository.getAllReminders()
-            }
+        fab.setOnClickListener {
+            startAddActivity()
         }
-
-        this@MainActivity.reminders.clear()
-        this@MainActivity.reminders.addAll(reminders)
-        reminderAdapter.notifyDataSetChanged()
     }
+
+    private fun observeViewModel() {
+        viewModel.reminders.observe(this, Observer{ reminders ->
+            this@MainActivity.reminders.clear()
+            this@MainActivity.reminders.addAll(reminders)
+            reminderAdapter.notifyDataSetChanged()
+        })
+    }
+
 
     /**
      * retrieve data (reminder object) from other view
      */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-//        super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode == Activity.RESULT_OK) {
+        super.onActivityResult(requestCode, resultCode, data)
 
+        if (resultCode == Activity.RESULT_OK) {
             when (requestCode) {
                 ADD_REMINDER_REQUEST_CODE -> {
-                    val reminder = data!!.getParcelableExtra<Reminder>(EXTRA_REMINDER)
-                    CoroutineScope(Dispatchers.Main).launch {
-                        withContext(Dispatchers.IO) {
-                            reminderRepository.insertReminder(reminder)
+                    data?.let{safeData ->
+                        val reminder = safeData.getParcelableExtra<Reminder>(EXTRA_REMINDER)
+                        reminder?.let { safeReminder ->
+
+                            viewModel.insertReminder(safeReminder)
+                        } ?: run {
+                            Log.e("TAG", "Reminder is null")
                         }
-                        getRemindersFromDatabase()
+                    } ?: run {
+                        Log.e("TAG", "null intent data received")
                     }
                 }
             }
@@ -126,16 +130,14 @@ class MainActivity : AppCompatActivity() {
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                 val position = viewHolder.adapterPosition
                 val remindersToDelete = reminders[position]
-
-                CoroutineScope(Dispatchers.Main).launch {
-                    withContext(Dispatchers.IO) {
-                        reminderRepository.deleteReminder(remindersToDelete)
-                    }
-                }
-                getRemindersFromDatabase()
+                viewModel.deleteReminder(remindersToDelete)
             }
         }
 
         return ItemTouchHelper(callback)
+    }
+
+    companion object {
+        const val ADD_REMINDER_REQUEST_CODE = 100
     }
 }

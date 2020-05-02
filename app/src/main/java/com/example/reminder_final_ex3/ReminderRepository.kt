@@ -1,8 +1,9 @@
 package com.example.reminder_final_ex3
 
 import android.content.Context
+import androidx.lifecycle.LiveData
 
-public class ReminderRepository(context: Context) {
+class ReminderRepository(context: Context) {
 
     private var reminderDao: ReminderDao
 
@@ -11,11 +12,11 @@ public class ReminderRepository(context: Context) {
         reminderDao = reminderRoomDatabase!!.reminderDao()
     }
 
-    suspend fun getAllReminders() : List<Reminder> {
+    fun getAllReminders() : LiveData<List<Reminder>> {
         return reminderDao.getAllReminders()
     }
 
-    suspend fun insertReminder(reminder : Reminder) {
+    fun insertReminder(reminder : Reminder) {
         reminderDao.insertReminder(reminder)
     }
 
